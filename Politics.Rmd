@@ -1,0 +1,43 @@
+---
+title: "Politics"
+author: "Leisha Parkinson S4664248"
+date: "18/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Cleaner version:
+
+```{r}
+#look at first 6 obs
+politics%>%
+  head()
+
+#look at structure
+politics%>%
+  str()
+
+  
+politics_short<-politics%>%
+  select(user_id, screen_name, created_at, text, favourites_count, retweet_count)
+
+politics_short%>%write_csv("politics_short_17_10_21.csv")
+```
+
+### Explore frequency of tweets
+
+
+```{r}
+ts_plot(politics_short, "hours") +
+  labs(x = NULL, y = NULL,
+       title = "Frequency of tweets with politics",
+       subtitle = paste0(format(min(politics_short$created_at), "%d %B %Y"), " to ", format(max(politics_short$created_at),"%d %B %Y")),
+       caption = "Politics tweets Data collected from Twitter") +
+  theme_minimal()
+```
+
+
+```{r}
