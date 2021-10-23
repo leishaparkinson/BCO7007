@@ -1,0 +1,81 @@
+---
+title: "Twitter Coffee"
+author: "Leisha Parkinson S4664248"
+date: "07/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+#install.packages("rtweet")
+library(rtweet)
+
+```
+
+## Data Import                   
+
+Step 1. Collect tweets about coffee 
+
+```{r}
+library(tidyverse)
+library(rtweet)
+
+#every week do this
+disney_data<-search_tweets(
+  q="#disney",
+  n=18000,
+  include_rts = FALSE,
+  lang="en",
+  retryonratelimit = TRUE
+)
+
+disney_data<-disney_data%>%flatten()
+
+#change the name of the file
+#if you don't you are going to lose your data!!!!
+
+disney_data%>%write_csv("Disney_data_23_10_2021.csv")
+
+
+```
+
+```{r}
+
+newcastle_data<-search_tweets(
+  q="#newcastle",
+  n=18000,
+  include_rts = FALSE,
+  lang="en",
+  retryonratelimit = TRUE
+)
+
+newcastle_data<-newcastle_data%>%flatten()
+
+#change the name of the file
+#if you don't you are going to lose your data!!!!
+
+newcastle_data%>%write_csv("newcastle_data_23_10_2021.csv")
+
+```
+
+```{r}
+
+politics_data<-search_tweets(
+  q="#politics",
+  n=18000,
+  include_rts = FALSE,
+  lang="en",
+  retryonratelimit = TRUE
+)
+
+politics_data<-politics_data%>%flatten()
+
+#change the name of the file
+#if you don't you are going to lose your data!!!!
+
+politics_data%>%write_csv("politics_data_23_10_2021.csv")
+
+```
+
