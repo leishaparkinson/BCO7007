@@ -1,0 +1,204 @@
+---
+title: "Assignment 2 Disney"
+author: "Leisha Parkinson S4664248"
+date: "03/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+library(tidytext)
+library(tidyverse)
+library(lubridate)
+library(textdata)
+
+library(dplyr)
+
+library(RColorBrewer)
+library(wordcloud)
+library(wordcloud2)
+
+library(topicmodels)
+library(tm)
+
+#import twitter data
+```{r}
+tweet_disney<-read_csv("final_disney_data.csv")
+
+tweet_disney<-
+  tweet_disney%>%
+  mutate(
+    timestamp=ymd_hms(created_at),
+    day_of_week=wday(timestamp),
+    id=as_factor(row_number())
+  )
+```
+
+
+```{r}
+#wday(ymd(080101), label = TRUE, abbr = FALSE)
+#wday(ymd(080101), label = TRUE, abbr = TRUE)
+
+#explore wday() function
+
+remove_reg <- "&amp;|&lt;|&gt;|\\d+\\w*\\d*|#\\w+|[^\x01-\x7F]|[[:punct:]]|https\\S*"
+# &amp = @
+# &lt;= <
+# &gt; >
+```
+
+
+##removing retweets characters
+```{r}
+tidy_tweets_disney <- tweet_disney %>% 
+  filter(!str_detect(text, "^RT")) %>%
+  mutate(text = str_remove_all(text, remove_reg))
+```
+
+##unnesting tweets 
+```{r}
+tidy_tweets_disney<-tidy_tweets_disney%>%
+  unnest_tokens(word, text, token = "tweets")
+```
+
+## Remove mentions, urls, emojis, numbers, punctuations, etc.
+```{r}
+tidy_tweets_disney<-tidy_tweets_disney%>%
+  filter(
+    str_detect(word, "[a-z]")#keep only character-words
+  )%>%
+  anti_join((stop_words))
+```
+
+
+```{r}
+head(tidy_tweets_disney$word)
+```
+
+
+```{r}
+#!!!!
+#if you want to use stem of the words (e.g. egg instead of eggs) you can use SnowballC::wordStem() option
+
+#install.packages("SnowballC")
+#library(SnowballC)
+#tidy_tweets_politics_stemmed<-tidy_tweets_politics%>% mutate(word=SnowballC::wordStem(word))
+#head(tidy_tweets_stemmed$word)
+```
+
+
+##sentiment
+```{r}
+bing_disney<-get_sentiments("bing")
+nrc_disney<-get_sentiments("nrc")
+
+selected_tweets_tidy_disney<-tidy_tweets_disney%>% select(timestamp, day_of_week, location, word, user_id)
+
+selected_tweets_tidy_disney<-selected_tweets_tidy_disney%>%
+  inner_join(bing_disney)%>%
+  rename(sentiment_bing=sentiment)%>%
+  inner_join(nrc_disney)%>%
+  rename(sentiment_nrc=sentiment)
+
+
+selected_tweets_tidy_disney%>%
+  count(sentiment_nrc, sort=TRUE)
+
+selected_tweets_tidy_disney%>%
+  count(sentiment_bing, sort=TRUE)
+
+selected_tweets_tidy_disney%>%
+  group_by(user_id)%>%
+  count(sentiment_nrc, sort=TRUE)
+```
+
+##wordcloud
+```{r}
+tidy_tweets_disney%>%count(word) %>%
+  with(wordcloud(word, n, max.words = 100))
+
+#more wordclouds with wordcloud2 package! - it is awesome!
+# https://cran.r-project.org/web/packages/wordcloud2/vignettes/wordcloud.html
+#install.packages("wordcloud2")
+#library(wordcloud2)
+
+tidy_tweets_wordcloud_disney<-tidy_tweets_disney%>%count(word) %>%
+  select(word, n)%>%
+  filter(!word=="disney") #too many occurencies!!!!
+
+
+wordcloud2(tidy_tweets_wordcloud_disney,color = "random-light", backgroundColor = "black")
+
+letterCloud(tidy_tweets_wordcloud_disney, word = "disney", size = 2)
+```
+
+---------------------
+#topic modeling
+
+##create a document term frequency based on how often words are
+```{r}
+
+
+tweets_dtm_disney<-tidy_tweets_disney%>%
+  count(id, word)%>%
+  cast_dtm( #converts our data to a special object for R = document term frequency matrix
+    document=id,
+    term=word,
+    value=n,
+    weighting=tm::weightTf
+  )
+
+tweets_dtm
+
+#to speed up processing let's remove those words that are VERY rare
+#install.packages("tm")
+#sparse=rare
+tweets_dtm_trim_disney<-tm::removeSparseTerms(tweets_dtm_disney, sparse=.99)
+rowTotals <- apply(tweets_dtm_trim_disney, 1, sum) #Find the sum of words in each Document
+tweets_dtm_trim_disney <- tweets_dtm_trim_disney[rowTotals> 0, ] 
+
+tweets_dtm_trim
+
+#LDA for 5 topics
+tweets_lda_disney<-LDA(tweets_dtm_trim_disney, k=5, control=list(seed=1234))
+
+tweet_topics_disney<-tidy(tweets_lda_disney, matrix="beta")
+
+#let's look at them with 10 top words for each topic
+tweet_top_terms_disney <- tweet_topics_disney %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+tweet_top_terms_disney %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip() +
+  scale_x_reordered()
+
+
+#OPTIONAL
+#if you want a "scientific" way to see how many topics you need to use
+#you can use ldatuning package
+
+install.packages("ldatuning") #select no for compilation if asked
+library(ldatuning)
+
+#it will take TIME!
+topic_n_disney <- FindTopicsNumber(dtm = tweets_dtm_trim_politics , topics = seq(from = 2, to = 30, by = 1), 
+                            metrics = "Griffiths2004", 
+                            method = "Gibbs",
+                            control = list(seed = 123),
+                            mc.cores = 4L,
+                            verbose = TRUE)
+
+FindTopicsNumber_plot(topic_n)
+#it works the same way as "elbow method" for cluster analysis from bco6008
+#if you have not done bco6008- just skip this part! 
+#once are happy with the number of topics - 
+#you can rerun the LDA with the number of topics you identified from ldatuning
